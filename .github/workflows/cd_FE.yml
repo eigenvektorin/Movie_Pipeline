@@ -17,10 +17,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup NodeJS ${{env.NODE_VERSION}}
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: ${{env.NODE_VERSION}}
           cache: "npm"
@@ -34,10 +34,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup NodeJS ${{env.NODE_VERSION}}
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: ${{env.NODE_VERSION}}
           cache: "npm"
@@ -52,10 +52,10 @@ jobs:
     needs: [lint, test]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Use NodeJS ${{env.NODE_VERSION}}
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: ${{env.NODE_VERSION}}
           cache: "npm"
@@ -91,7 +91,7 @@ jobs:
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
 
       - name: Set up kubectl
-        uses: azure/setup-kubectl@v3
+        uses: azure/setup-kubectl@v4
         with:
           version: "latest"
 
