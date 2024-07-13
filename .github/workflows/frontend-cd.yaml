@@ -7,7 +7,7 @@ on:
       - main
 
 env:
-  NODE_VERSION: "latest"
+  NODE_VERSION: "18"
   SRC_DIR: "${{ github.workspace }}/starter/frontend/"
   K8_DIR: "${{ github.workspace }}/starter/frontend/k8s"
   AWS_REGION: "us-east-1"
@@ -23,10 +23,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{env.NODE_VERSION}}
-          cache: "npm"
-          cache-dependency-path: "${{ env.SRC_DIR}}/package-lock.json"
+
+      - name: Cache Node modules
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.SRC_DIR }}/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles(env.SRC_DIR + '/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
       - name: Install dependencies
         run: cd ${{env.SRC_DIR}} && npm ci
+
       - name: Run linting
         run: cd ${{env.SRC_DIR}} && npm run lint
 
@@ -40,13 +48,21 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{env.NODE_VERSION}}
-          cache: "npm"
-          cache-dependency-path: "${{ env.SRC_DIR}}/package-lock.json"
-      # TODO: Perform a cache action to restore cache before deps install.
+
+      - name: Cache Node modules
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.SRC_DIR }}/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles(env.SRC_DIR + '/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
       - name: Install dependencies
         run: cd ${{env.SRC_DIR}} && npm ci
+
       - name: Run tests
         run: cd ${{env.SRC_DIR}} && npm test
+
   build-deploy:
     runs-on: ubuntu-latest
     needs: [lint, test]
@@ -54,19 +70,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Use NodeJS ${{env.NODE_VERSION}}
+      - name: Setup NodeJS ${{env.NODE_VERSION}}
         uses: actions/setup-node@v4
         with:
           node-version: ${{env.NODE_VERSION}}
-          cache: "npm"
-          cache-dependency-path: "${{ env.SRC_DIR}}/package-lock.json"
 
-      # TODO: Perform a cache action to restore cache before deps install.
+      - name: Cache Node modules
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.SRC_DIR }}/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles(env.SRC_DIR + '/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
       - name: Install dependencies
         run: cd ${{env.SRC_DIR}} && npm ci
 
       - name: Build
-        run: cd ${{env.SRC_DIR}} && npm test
+        run: cd ${{env.SRC_DIR}} && npm run build
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -84,7 +105,6 @@ jobs:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: frontend
           IMAGE_TAG: ${{ github.sha }}
-
         run: |
           cd ${{env.SRC_DIR}}
           docker build --build-arg=REACT_APP_MOVIE_API_URL=${{secrets.BACKEND_API_URL}} --tag=$REGISTRY/$REPOSITORY:$IMAGE_TAG .
@@ -100,11 +120,10 @@ jobs:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: frontend
           IMAGE_TAG: ${{ github.sha }}
-          KUBE_CONFIG: ${{ secrets.KUBECONFIG }}
+          KUBECONFIG: ${{ secrets.KUBECONFIG }}
         run: |
-          cd ${{env.K8_DIR}}
           aws eks update-kubeconfig --name=cluster
+          cd ${{env.K8_DIR}}
           echo "frontend=$REGISTRY/$REPOSITORY:$IMAGE_TAG"
-
           kustomize edit set image frontend=$REGISTRY/$REPOSITORY:$IMAGE_TAG
           kustomize build | kubectl apply -f -
