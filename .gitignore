@@ -1,3 +1,4 @@
 commands.sh
 setup/aws-iam-authenticator
 setup/terraform
+node_modules
