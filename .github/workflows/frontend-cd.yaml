@@ -1,4 +1,4 @@
-name: Frontend Deployment (CD)
+name: Frontend Continuous Deployment
 
 on:
   workflow_dispatch:
@@ -28,7 +28,8 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ${{ env.SRC_DIR }}/node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles(env.SRC_DIR + '/package-lock.json') }}
+          key: ${{ runner.os }}-node-${{ hashFiles(format('{0}/package-lock.json', env.SRC_DIR)) }}
+      
           restore-keys: |
             ${{ runner.os }}-node-
 
