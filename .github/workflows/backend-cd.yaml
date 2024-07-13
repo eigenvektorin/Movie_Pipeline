@@ -8,6 +8,11 @@ on:
       - 'starter/backend/**'
   workflow_dispatch:
 
+env:
+  AWS_REGION: "us-east-1"
+  BACKEND_ECR: ${{ secrets.BACKEND_ECR }}
+  CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
+
 jobs:
 
   lint-backend:
@@ -114,8 +119,8 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.SECRETS_ACCESS_KEY }}
-          aws-region: us-west-2
+          aws-secret-access-key: ${{ secrets.SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -124,16 +129,16 @@ jobs:
       - name: Build, tag, and push docker image to Amazon ECR
         id: build-and-push
         env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: udacity
+          REGISTRY: ${{ secrets.BACKEND_ECR }}
+          REPOSITORY: backend
           IMAGE_TAG: ${{ github.sha }}
         run: |
           cd starter/backend
-          docker build -t $REGISTRY/$REPOSITORY:backend-$IMAGE_TAG .
-          docker push $REGISTRY/$REPOSITORY:backend-$IMAGE_TAG
+          docker build -t $REGISTRY:$REPOSITORY:$IMAGE_TAG .
+          docker push $REGISTRY:$REPOSITORY:$IMAGE_TAG
 
           echo "::set-output name=REPOSITORY::$REPOSITORY"
-          echo "::set-output name=IMAGE_TAG::backend-$IMAGE_TAG"
+          echo "::set-output name=IMAGE_TAG::$IMAGE_TAG"
 
   deploy-backend:
     name: 'Deploy Backend'
@@ -153,7 +158,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-west-2
+          aws-region: us-east-1
 
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
@@ -167,8 +172,7 @@ jobs:
 
       - name: Deploy to Kubernetes
         run: |
-          aws eks update-kubeconfig --name=cluster
+          aws eks update-kubeconfig --name=${{ secrets.CLUSTER_NAME }}
           cd starter/backend/k8s
-          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig.yaml
-          kustomize edit set image backend=${{ secrets.PRIVATE_REGISTRY_URL }}/$REPOSITORY:$IMAGE_TAG
-          kustomize build | kubectl apply -f - --kubeconfig=kubeconfig.yaml
+          kustomize edit set image backend=${{ secrets.BACKEND_ECR }}:${{ needs.build-backend.outputs.IMAGE_TAG }}
+          kustomize build | kubectl apply -f -

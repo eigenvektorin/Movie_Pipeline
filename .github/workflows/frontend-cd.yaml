@@ -11,6 +11,8 @@ env:
   SRC_DIR: "${{ github.workspace }}/starter/frontend/"
   K8_DIR: "${{ github.workspace }}/starter/frontend/k8s"
   AWS_REGION: "us-east-1"
+  FRONTEND_ECR: ${{ secrets.FRONTEND_ECR }}
+  CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
 
 jobs:
   lint:
@@ -35,7 +37,6 @@ jobs:
 
       - name: Install dependencies
         run: cd ${{env.SRC_DIR}} && npm ci
-
       - name: Run linting
         run: cd ${{env.SRC_DIR}} && npm run lint
 
@@ -60,7 +61,6 @@ jobs:
 
       - name: Install dependencies
         run: cd ${{env.SRC_DIR}} && npm ci
-
       - name: Run tests
         run: cd ${{env.SRC_DIR}} && npm test
 
@@ -71,7 +71,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup NodeJS ${{env.NODE_VERSION}}
+      - name: Use NodeJS ${{env.NODE_VERSION}}
         uses: actions/setup-node@v4
         with:
           node-version: ${{env.NODE_VERSION}}
@@ -121,7 +121,7 @@ jobs:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: frontend
           IMAGE_TAG: ${{ github.sha }}
-          KUBECONFIG: ${{ secrets.KUBECONFIG }}
+      
         run: |
           aws eks update-kubeconfig --name=cluster
           cd ${{env.K8_DIR}}
