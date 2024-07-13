@@ -1,0 +1,185 @@
+name: Backend Continuous Deployment
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'starter/backend/**'
+  
+  workflow_dispatch:
+
+jobs:
+
+  lint-backend:
+    name: 'Lint backend'
+    runs-on: ubuntu-latest   # Use the latest Ubuntu runner
+
+    steps:
+      # Check out the code to the runner
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Setup Python 3.10.6
+      - name: Use Python 3.10.6
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10.6'
+          cache: 'pipenv'
+
+      # Install pipenv
+      - name: Install pipenv
+        run: curl https://raw.githubusercontent.com/pypa/pipenv/master/get-pipenv.py | python
+
+      # Install dependencies
+      - name: Install dependencies
+        run: pipenv install --dev
+        working-directory: starter/backend
+
+      # Run lint
+      - name: Run lint
+        run: pipenv run lint
+        working-directory: starter/backend
+
+  test-backend:
+    name: 'Test backend'
+    runs-on: ubuntu-latest   # Use the latest Ubuntu runner
+
+    steps:
+      # Check out the code to the runner
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Setup Python 3.10.6
+      - name: Use Python 3.10.6
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10.6'
+          cache: 'pipenv'
+
+      # Install pipenv
+      - name: Install pipenv
+        run: curl https://raw.githubusercontent.com/pypa/pipenv/master/get-pipenv.py | python
+
+      # Install dependencies
+      - name: Install dependencies
+        run: pipenv install --dev
+        working-directory: starter/backend
+
+      # Run test
+      - name: Run test
+        run: pipenv run test
+        working-directory: starter/backend
+
+  build-backend:
+    name: 'Build backend'
+    needs: [ lint-backend, test-backend ]
+    runs-on: ubuntu-latest
+
+    outputs:
+      REPOSITORY: ${{ steps.build-and-push.outputs.REPOSITORY }}
+      IMAGE_TAG: ${{ steps.build-and-push.outputs.IMAGE_TAG }}
+
+    steps:
+      # Check out the code to the runner
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Setup Python 3.10.6
+      - name: Use Python 3.10.6
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10.6'
+          cache: 'pipenv'
+
+      # Install pipenv
+      - name: Install pipenv
+        run: curl https://raw.githubusercontent.com/pypa/pipenv/master/get-pipenv.py | python
+
+      # Install dependencies
+      - name: Install dependencies
+        run: pipenv install
+        working-directory: starter/backend
+
+      # Setup Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      # Build docker image
+      - name: Build docker image
+        run: |
+          cd starter/backend
+          docker build --no-cache --tag mp-backend:latest .
+
+      # Configure AWS credentials
+      - name: Set AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.SECRETS_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      # Login to Amazon ECR
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+        with:
+          mask-password: 'true'
+
+      # Build, tag, and push docker image to Amazon ECR
+      - name: Build, tag, and push docker image to Amazon ECR
+        id: build-and-push
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: udacity
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          cd starter/backend
+          docker build -t $REGISTRY/$REPOSITORY:backend-$IMAGE_TAG .
+          docker push $REGISTRY/$REPOSITORY:backend-$IMAGE_TAG
+
+          echo "::set-output name=REPOSITORY::$REPOSITORY"
+          echo "::set-output name=IMAGE_TAG::backend-$IMAGE_TAG"
+  
+  deploy-backend:
+    name: 'Deploy Backend'
+    needs: [ build-backend ]
+    runs-on: ubuntu-latest
+
+    env:
+      REPOSITORY: ${{ needs.build-backend.outputs.REPOSITORY }}
+      IMAGE_TAG: ${{ needs.build-backend.outputs.IMAGE_TAG }}
+
+    steps:
+      # Check out the code to the runner
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Configure AWS credentials
+      - name: Set AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRETS_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-west-2
+
+      # Setup kubectl
+      - name: Setup kubectl
+        uses: yokawasa/action-setup-kube-tools@v0.9.3
+        with:
+          kubectl: '1.27.3'
+
+      # Install Kustomize
+      - name: Install Kustomize
+        run: |
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"  | bash
+          sudo mv kustomize /usr/local/bin/
+
+      # Deploy to Kubernetes
+      - name: Deploy to Kubernetes
+        run: |
+          cd starter/backend/k8s
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig.yaml
+          kustomize edit set image backend=${{ secrets.PRIVATE_REGISTRY_URL }}/$REPOSITORY:$IMAGE_TAG
+          kustomize build | kubectl apply -f - --kubeconfig=kubeconfig.yaml
