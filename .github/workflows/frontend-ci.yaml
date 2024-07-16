@@ -7,9 +7,11 @@ on:
     paths:
       - 'starter/frontend/**'
   workflow_dispatch:
-  
+
 env:
-  REACT_APP_MOVIE_API_URL: http://localhost:5000
+  REACT_APP_MOVIE_API_URL: ${{ secrets.REACT_APP_MOVIE_API_URL }}  # Use GitHub Secret for the API URL
+  DOCKER_IMAGE_NAME: mp-frontend
+  DOCKER_IMAGE_TAG: ${{ github.sha }}
 
 jobs:
   lint-frontend:
@@ -77,10 +79,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build Docker image
-        run: docker build --build-arg REACT_APP_MOVIE_API_URL=${{ env.REACT_APP_MOVIE_API_URL }} --tag mp-frontend:latest starter/frontend
+        run: |
+          docker build --build-arg REACT_APP_MOVIE_API_URL=${{ env.REACT_APP_MOVIE_API_URL }} \
+            --tag ${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }} \
+            starter/frontend
 
       - name: Run docker image
-        run: docker run --name mp-frontend -p 3000:3000 -d mp-frontend
+        run: docker run --name ${{ env.DOCKER_IMAGE_NAME }} -p 3000:3000 -d ${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}
 
       - name: Review logs
-        run: docker logs mp-frontend
+        run: docker logs ${{ env.DOCKER_IMAGE_NAME }}
