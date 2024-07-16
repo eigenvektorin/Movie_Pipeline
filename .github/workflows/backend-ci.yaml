@@ -70,7 +70,7 @@ jobs:
         working-directory: starter/backend
 
       - name: Test running application
-        run: curl http://localhost:5000/movies
+        run: curl ${{ vars.BACKEND_API_URL }}
  
       - name: Stop Docker container
         run: docker stop mp-backend
