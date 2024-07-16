@@ -10,7 +10,6 @@ env:
   NODE_VERSION: "18"
   SRC_DIR: "${{ github.workspace }}/starter/frontend/"
   K8_DIR: "${{ github.workspace }}/starter/frontend/k8s"
-  AWS_REGION: "us-east-1"
   FRONTEND_ECR: ${{ secrets.FRONTEND_ECR }}
   CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
 
@@ -95,7 +94,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
